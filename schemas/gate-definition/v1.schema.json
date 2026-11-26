@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/brightsmiths/gate-warden/schemas/gate-definition/v1.schema.json",
+  "title": "Gate definition v1",
+  "description": "Declarative definition of one gate, supplied by a discipline pack in the harness. Read by gate-warden from the harness at the version pinned on the default branch. See docs/spec/interfaces/gate-definition-schema.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "gate", "name", "sandbox", "checks"],
+  "properties": {
+    "schema": {
+      "description": "Schema identifier and major version.",
+      "const": "gate-definition/v1"
+    },
+    "gate": {
+      "description": "Gate id. G9 is owned by release-ratifier and is not accepted.",
+      "type": "string",
+      "pattern": "^G[1-8]$"
+    },
+    "name": {
+      "description": "Display name used in the check-run name 'gate-warden / <gate> <name>'.",
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9 -]{0,39}$"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 1000
+    },
+    "applies_to": {
+      "description": "Applicability rules. Absent means the gate applies to every pull request. When both lists are present, both must match.",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "branches": {
+          "description": "Glob patterns matched against the PR head branch name.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "items": { "type": "string", "minLength": 1, "maxLength": 255 }
+        },
+        "paths_any": {
+          "description": "Glob patterns; the gate applies if any changed path matches one.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "items": { "type": "string", "minLength": 1, "maxLength": 1024 }
+        }
+      }
+    },
+    "sandbox": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["image", "limits"],
+      "properties": {
+        "image": {
+          "description": "Sandbox image reference pinned by digest. Tag-only references are rejected.",
+          "type": "string",
+          "maxLength": 512,
+          "pattern": "^[^\\s@]+@sha256:[a-f0-9]{64}$"
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cpus", "memory_mib", "wall_clock_seconds"],
+          "properties": {
+            "cpus": { "type": "integer", "minimum": 1, "maximum": 64 },
+            "memory_mib": { "type": "integer", "minimum": 256, "maximum": 262144 },
+            "disk_mib": { "type": "integer", "minimum": 256, "maximum": 1048576 },
+            "wall_clock_seconds": {
+              "description": "Upper bound for the whole gate run inside the sandbox.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 21600
+            }
+          }
+        }
+      }
+    },
+    "checks": {
+      "description": "Checks run sequentially in this order; every check runs.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "thresholds": {
+      "description": "L3 (planned): per-tier metric thresholds. Rejected by gate-warden before L3 so it is never silently ignored.",
+      "type": "object",
+      "propertyNames": { "pattern": "^T[0-3]$" },
+      "additionalProperties": {
+        "type": "object",
+        "propertyNames": { "pattern": "^[a-z0-9][a-z0-9._-]{0,99}$" },
+        "additionalProperties": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "min": { "type": "number" },
+            "max": { "type": "number" }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "purpose", "allowed_responses", "command", "timeout_seconds"],
+      "properties": {
+        "id": {
+          "description": "Unique within the gate; must equal check_id in the emitted gate result.",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+        },
+        "purpose": {
+          "description": "Why this check matters. Shown in feedback as 'why it matters'.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "allowed_responses": {
+          "description": "What the author may do when the check fails. Shown in feedback as 'what is allowed'.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "command": {
+          "description": "Argument vector executed inside the sandbox, without a shell.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": { "type": "string", "minLength": 1, "maxLength": 4096 }
+        },
+        "env": {
+          "description": "Extra non-secret environment variables. The GATE_ prefix is reserved.",
+          "type": "object",
+          "maxProperties": 32,
+          "propertyNames": { "pattern": "^(?!GATE_)[A-Z][A-Z0-9_]{0,63}$" },
+          "additionalProperties": { "type": "string", "maxLength": 4096 }
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7200
+        }
+      }
+    }
+  }
+}
