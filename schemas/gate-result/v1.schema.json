@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/brightsmiths/gate-warden/schemas/gate-result/v1.schema.json",
+  "title": "Gate result v1",
+  "description": "Standard, discipline-neutral result of one gate check. Written by a check command to the file named by GATE_RESULT_FILE. See docs/spec/interfaces/gate-result-format.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "check_id", "status"],
+  "properties": {
+    "format": {
+      "description": "Format identifier and major version.",
+      "const": "gate-result/v1"
+    },
+    "check_id": {
+      "description": "Must equal the id of the check as declared in the gate definition.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+    },
+    "status": {
+      "description": "pass: the check judged the workspace acceptable. fail: it judged it unacceptable. error: it could not judge. There is deliberately no skip value.",
+      "enum": ["pass", "fail", "error"]
+    },
+    "summary": {
+      "description": "Optional one-line coarse summary.",
+      "type": "string",
+      "maxLength": 500
+    },
+    "findings": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": { "$ref": "#/$defs/finding" }
+    },
+    "metrics": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/metric" }
+    },
+    "tool": {
+      "description": "Optional identity of the underlying tool, for provenance.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "version": { "type": "string", "maxLength": 100 }
+      }
+    },
+    "seed": {
+      "description": "Random seed used by the check, if any (L3, GATE_SEED).",
+      "type": "string",
+      "maxLength": 128
+    }
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["severity", "message"],
+      "properties": {
+        "location": { "$ref": "#/$defs/location" },
+        "rule": {
+          "description": "Machine-readable rule or code, e.g. a lint name.",
+          "type": "string",
+          "maxLength": 200
+        },
+        "severity": { "enum": ["error", "warning", "notice"] },
+        "message": {
+          "description": "Coarse, human-readable message. Must not contain test source or holdout content.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "req_id": {
+          "description": "Requirement identifier this finding relates to, if known.",
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+        },
+        "visibility": {
+          "description": "holdout findings are reduced to their req_id before publishing.",
+          "enum": ["visible", "holdout"],
+          "default": "visible"
+        }
+      }
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "description": "Repository-relative path using forward slashes; no leading slash, no '..' segments.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$)).+$"
+        },
+        "start_line": { "type": "integer", "minimum": 1 },
+        "end_line": { "type": "integer", "minimum": 1 },
+        "start_column": { "type": "integer", "minimum": 1 },
+        "end_column": { "type": "integer", "minimum": 1 }
+      },
+      "dependentRequired": {
+        "end_line": ["start_line"],
+        "start_column": ["start_line"],
+        "end_column": ["start_column"]
+      }
+    },
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "value"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,99}$"
+        },
+        "value": { "type": "number" },
+        "unit": { "type": "string", "maxLength": 32 }
+      }
+    }
+  }
+}

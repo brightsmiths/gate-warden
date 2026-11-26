@@ -1,0 +1,65 @@
+# Technology decisions for gate-warden.
+# Status values: decided | proposed. See docs/adr/ for rationale.
+
+language:
+  name: rust
+  status: decided
+  adr: docs/adr/ADR-0001-rust-stateless-service.md
+  toolchain: stable, pinned via rust-toolchain.toml (added when implementation starts)
+
+service:
+  shape: single stateless binary; state only in GitHub check runs (and baselines from L2)
+  status: decided
+  adr: docs/adr/ADR-0001-rust-stateless-service.md
+
+architecture:
+  style: clean architecture (business logic / ports / adapters) as a cargo workspace
+  dependency_rule: business-logic crates must not depend on adapter, HTTP, GitHub, NATS, sandbox or secret-store crates
+  enforcement: workspace crate boundaries + cargo-deny bans
+  status: decided
+
+error_handling:
+  expected_errors: Result<T, E> with typed error enums
+  panics: programmer errors only; never on untrusted input
+  status: decided
+
+interfaces:
+  gate_result_format:
+    version: gate-result/v1
+    schema: schemas/gate-result/v1.schema.json
+    adr: docs/adr/ADR-0003-standard-gate-result-format.md
+  gate_definition:
+    version: gate-definition/v1
+    schema: schemas/gate-definition/v1.schema.json
+    adr: docs/adr/ADR-0004-gate-definition-schema-ownership.md
+  schema_dialect: JSON Schema draft 2020-12
+  feedback_format:
+    version: gate-feedback/v1
+    schema: schemas/gate-feedback/v1.schema.json
+    spec: docs/spec/interfaces/feedback-format.md
+    adr: docs/adr/ADR-0008-feedback-in-check-run-output.md
+
+integrations:
+  github: own GitHub App; checks write, contents read, pull_requests read, metadata read; no administration
+  intake: App webhook at L1; queue-keeper / NATS JetStream at L2 (planned)
+  sandbox: sandbox-runner microVMs (reference provider microsandbox); interface to be fixed with sandbox-runner
+  secrets: abstract SecretProvider (Vault or any KMS)
+  signing: chain-chronicler (L2, planned)
+  telemetry: OpenTelemetry (OTLP)
+
+testing:
+  runner: cargo-nextest
+  property: proptest
+  mutation: cargo-mutants
+  targets: 90% line coverage and 80% mutation score on business-logic crates (proposed)
+
+constraints:
+  - no LLM anywhere in gate-warden
+  - no cloud-specific dependencies
+  - no unsafe code
+  - no discipline-specific logic
+
+to_be_decided_by_interface_design:
+  - async runtime and HTTP framework
+  - GitHub client library
+  - JSON Schema validation library

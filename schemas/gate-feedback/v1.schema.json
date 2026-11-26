@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/brightsmiths/gate-warden/schemas/gate-feedback/v1.schema.json",
+  "title": "Gate feedback v1",
+  "description": "Structured, redacted feedback that gate-warden publishes for one gate run, inside a fenced `json gate-feedback/v1` block in the check run's output.text. gate-warden is the producer; CogWorks and humans are consumers. Consumers must reject unknown major versions and ignore unknown fields, so objects are open to additional properties for minor, additive changes. See docs/spec/interfaces/feedback-format.md.",
+  "type": "object",
+  "required": ["format", "sha", "gate", "harness_version", "harness_commit", "config_sha", "verdict", "category", "checks"],
+  "properties": {
+    "format": {
+      "description": "Format identifier and major version.",
+      "const": "gate-feedback/v1"
+    },
+    "sha": {
+      "description": "The evaluated commit SHA.",
+      "$ref": "#/$defs/git_sha"
+    },
+    "gate": {
+      "description": "Gate id. G9 is owned by release-ratifier and is never reported by gate-warden.",
+      "type": "string",
+      "pattern": "^G[1-8]$"
+    },
+    "harness_version": {
+      "description": "Pinned harness version.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "harness_commit": {
+      "description": "Commit of the pinned harness.",
+      "$ref": "#/$defs/git_sha"
+    },
+    "config_sha": {
+      "description": "Default-branch commit the configuration was read from.",
+      "$ref": "#/$defs/git_sha"
+    },
+    "verdict": {
+      "description": "Gate outcome.",
+      "enum": ["pass", "fail", "not-evaluated"]
+    },
+    "category": {
+      "description": "Why the gate has this outcome. See docs/spec/vocabulary.md#outcome-category.",
+      "enum": ["verdict", "check-error", "configuration", "infrastructure", "superseded", "not-evaluated"]
+    },
+    "reason": {
+      "description": "gate-warden-authored explanation, never check output. Required for configuration, infrastructure, superseded and not-evaluated.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "checks": {
+      "description": "One entry per declared check, in declared order.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "truncated": {
+      "description": "Present only if findings were dropped to fit the output limit.",
+      "type": "object",
+      "required": ["findings_dropped", "checks_affected"],
+      "properties": {
+        "findings_dropped": { "type": "integer", "minimum": 1 },
+        "checks_affected": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/check_id" }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "description": "reason is required whenever the outcome is not a plain verdict or check error.",
+      "if": {
+        "properties": { "category": { "enum": ["configuration", "infrastructure", "superseded", "not-evaluated"] } }
+      },
+      "then": { "required": ["reason"] }
+    },
+    {
+      "description": "A passing gate is always a plain verdict.",
+      "if": { "properties": { "verdict": { "const": "pass" } } },
+      "then": { "properties": { "category": { "const": "verdict" } } }
+    },
+    {
+      "description": "not-evaluated verdict and category go together.",
+      "if": { "properties": { "verdict": { "const": "not-evaluated" } } },
+      "then": { "properties": { "category": { "const": "not-evaluated" } } }
+    }
+  ],
+  "$defs": {
+    "git_sha": {
+      "type": "string",
+      "pattern": "^([a-f0-9]{40}|[a-f0-9]{64})$"
+    },
+    "check_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+    },
+    "req_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+    },
+    "check": {
+      "type": "object",
+      "required": ["check_id", "status"],
+      "properties": {
+        "check_id": { "$ref": "#/$defs/check_id" },
+        "status": {
+          "description": "Interpreted status.",
+          "enum": ["pass", "fail", "error"]
+        },
+        "error_kind": {
+          "description": "Set only when status is error.",
+          "enum": ["timeout", "invalid-output", "exit-mismatch", "reported"]
+        },
+        "summary": {
+          "description": "From the check result, capped and escaped.",
+          "type": "string",
+          "maxLength": 200
+        },
+        "why_it_matters": {
+          "description": "The check's purpose from the gate definition (trusted, default branch). Only for non-passing checks.",
+          "type": "string",
+          "minLength": 1
+        },
+        "allowed": {
+          "description": "The check's allowed_responses from the gate definition (trusted, default branch). Only for non-passing checks.",
+          "type": "string",
+          "minLength": 1
+        },
+        "findings": {
+          "description": "Redacted visible findings, sorted by (severity, path, line, rule, message).",
+          "type": "array",
+          "items": { "$ref": "#/$defs/finding" }
+        },
+        "holdout_failures": {
+          "description": "REQ-IDs of failing holdouts, deduplicated and sorted. UNSPECIFIED stands for a holdout finding without a req_id. Nothing else is published for holdouts.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/req_id" }
+        },
+        "metrics": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/metric" }
+        }
+      },
+      "allOf": [
+        {
+          "description": "error_kind is present if and only if status is error.",
+          "if": { "properties": { "status": { "const": "error" } } },
+          "then": { "required": ["error_kind"] },
+          "else": { "not": { "required": ["error_kind"] } }
+        },
+        {
+          "description": "Guidance texts are included only for non-passing checks.",
+          "if": { "properties": { "status": { "const": "pass" } } },
+          "then": {
+            "not": {
+              "anyOf": [
+                { "required": ["why_it_matters"] },
+                { "required": ["allowed"] }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "finding": {
+      "description": "A visible finding after redaction. Holdout findings never appear here.",
+      "type": "object",
+      "required": ["severity", "message"],
+      "properties": {
+        "path": {
+          "description": "Repository-relative path using forward slashes; no leading slash, no '..' segments.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$)).+$"
+        },
+        "start_line": { "type": "integer", "minimum": 1 },
+        "end_line": { "type": "integer", "minimum": 1 },
+        "rule": { "type": "string", "maxLength": 200 },
+        "severity": { "enum": ["error", "warning", "notice"] },
+        "message": {
+          "description": "Capped at 300 characters (including the … suffix when cut) and escaped.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "req_id": { "$ref": "#/$defs/req_id" }
+      },
+      "dependentRequired": {
+        "start_line": ["path"],
+        "end_line": ["start_line"]
+      }
+    },
+    "metric": {
+      "type": "object",
+      "required": ["name", "value"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,99}$"
+        },
+        "value": { "type": "number" },
+        "unit": { "type": "string", "maxLength": 32 }
+      }
+    }
+  }
+}
