@@ -33,7 +33,11 @@ interfaces:
     schema: schemas/gate-definition/v1.schema.json
     adr: docs/adr/ADR-0004-gate-definition-schema-ownership.md
   schema_dialect: JSON Schema draft 2020-12
-  feedback_format: gate-feedback/v1 (docs/spec/interfaces/feedback-format.md)
+  feedback_format:
+    version: gate-feedback/v1
+    schema: schemas/gate-feedback/v1.schema.json
+    spec: docs/spec/interfaces/feedback-format.md
+    adr: docs/adr/ADR-0008-feedback-in-check-run-output.md
 
 integrations:
   github: own GitHub App; checks write, contents read, pull_requests read, metadata read; no administration

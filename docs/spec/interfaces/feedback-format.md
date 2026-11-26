@@ -5,6 +5,12 @@ and what is allowed**. It is coarse by design. It is carried in the check run's 
 ([ADR-0008](../../adr/ADR-0008-feedback-in-check-run-output.md)), because services do not hand
 work to each other directly.
 
+The machine-readable contract is
+[schemas/gate-feedback/v1.schema.json](../../../schemas/gate-feedback/v1.schema.json). The
+table below explains it; if the two disagree, the schema wins. gate-warden validates every
+block it publishes against the schema, and failing that validation is a bug, not a gate
+outcome.
+
 ## Placement
 
 - `output.text` contains exactly one fenced code block with the info string

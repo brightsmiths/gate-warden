@@ -69,6 +69,7 @@ Machine-readable schemas:
 
 - [`schemas/gate-result/v1.schema.json`](../../schemas/gate-result/v1.schema.json)
 - [`schemas/gate-definition/v1.schema.json`](../../schemas/gate-definition/v1.schema.json)
+- [`schemas/gate-feedback/v1.schema.json`](../../schemas/gate-feedback/v1.schema.json)
 
 ## Architecture decisions
 
